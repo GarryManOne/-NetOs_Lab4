@@ -20,6 +20,24 @@
 struct sockaddr_in description_sockaddr;
 int id_client_socket;
 
+// Вывод карты в консоль
+void PrintMap(){
+    // char* buf;
+    for (int i = 0; i < kMapSizeX; i++){
+        for (int j = 0; j < kMapSizeY; j++){
+            if (data_recv.map[i][j] == 19){
+                printf("[*]");
+            }
+            else{
+                
+                printf("[%d]", data_recv.map[i][j]);
+            }                
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 int main(int argc, char * argv[])
 {
      if(argc != 4)
@@ -27,7 +45,7 @@ int main(int argc, char * argv[])
         printf("Не достаточно аргументов!");
         return 0;
     }
-    DataSentClient data_out;
+    DataSend data_out;
      
     data_out.coord.x = atoi(argv[1]);   //  Расположение по X
     data_out.coord.y = atoi(argv[2]);   //  Расположение по Y
@@ -42,13 +60,17 @@ int main(int argc, char * argv[])
 
     send(id_client_socket, &data_out, sizeof(data_out), 0);
 
-    int data_in[4][4];
-
     while (1)
     {
-        recv(id_client_socket, %data_in, sizeof(data_in), 0);
+        recv(id_client_socket, &data_recv, sizeof(DataRecv), 0);
+        if (data_recv.dead == 1){
+            printf("Умер\n");
+            exit(0);
+        }
+        else{
+            PrintMap();
+        }
     }
     
-
     return 0;
 }

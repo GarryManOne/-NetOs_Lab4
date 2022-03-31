@@ -20,15 +20,42 @@
 struct sockaddr_in description_sockaddr;
 int id_server_socket;
 
+// Генерация псевдослучайных чисел на определнном промежутке
+int GetRandRangeInt(int min, int max){
+    return rand() % (max - min) + min;
+}
+
+// Создание карты для отправки клиенту
+void CreateMap(DataSend* data){
+    // char* buf;
+    for (int i = 0; i < kMapSizeX; i++){
+        for (int j = 0; j < kMapSizeY; j++){
+            if (map[i][j] == 17){
+                data->map[i][j] = 19;
+            }
+            else{
+                data->map[i][j] = db_animals[map[i][j]].type;
+            }               
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+// Функция работающая в отдельном потоке
 void* Animal(void* atr){
 
     int* index = (int*) atr;
     int n = 0;
+    DataSend data_send;
+    data_send.dead = 0;
 
     while (1){
         // Смотрим продолжительность жизни 
         if (db_animals[*index].life_time == 0 || db_animals[*index].startvation_time == 0){
             map[db_animals[*index].coord.x][db_animals[*index].coord.y] = 17;
+            data_send.dead = 1;
+            send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
             pthread_exit(NULL);
         }
 
@@ -69,6 +96,8 @@ void* Animal(void* atr){
 
         // Смотрим продолжительность жизни 
         if (db_animals[*index].life_time == 0){
+            data_send.dead = 1;
+            send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
             pthread_mutex_unlock(&mutex);
             pthread_exit(NULL);
         }
@@ -80,6 +109,8 @@ void* Animal(void* atr){
             if (db_animals[*index].type == db_animals[map[x][y]].type){
                 // Смотрим продолжительность жизни 
                 if (db_animals[*index].life_time == 0){
+                    data_send.dead = 1;
+                    send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
                     pthread_mutex_unlock(&mutex);
                     pthread_exit(NULL);
                 }
@@ -90,6 +121,8 @@ void* Animal(void* atr){
             else if ((db_animals[*index].type + 1 ) % 3 == db_animals[map[x][y]].type){
                 // Смотрим продолжительность жизни 
                 if (db_animals[*index].life_time == 0){
+                    data_send.dead = 1;
+                    send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
                     pthread_mutex_unlock(&mutex);
                     pthread_exit(NULL);
                 }
@@ -105,8 +138,8 @@ void* Animal(void* atr){
                 
                 map[x][y] = *index;
 
-                send(db_animals[*index].socket, &map, sizeof(map), 0);
-                // PrintMap();
+                CreateMap(&data_send);
+                send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
 
                 pthread_mutex_unlock(&mutex);
             }
@@ -114,14 +147,16 @@ void* Animal(void* atr){
             else{
                 // Смотрим продолжительность жизни 
                 if (db_animals[*index].life_time == 0){
+                    data_send.dead = 1;
+                    send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
                     pthread_mutex_unlock(&mutex);
                     pthread_exit(NULL);
                 }
 
                 map[db_animals[*index].coord.x][db_animals[*index].coord.y] = 17;
 
-                send(db_animals[*index].socket, &map, sizeof(map), 0);
-                // PrintMap();
+                CreateMap(&data_send);
+                send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
 
                 pthread_mutex_unlock(&mutex);
                 pthread_exit(NULL);
@@ -131,6 +166,8 @@ void* Animal(void* atr){
         {
             // Смотрим продолжительность жизни 
             if (db_animals[*index].life_time == 0){
+                data_send.dead = 1;
+                send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
                 pthread_mutex_unlock(&mutex);
                 pthread_exit(NULL);
             }
@@ -145,19 +182,49 @@ void* Animal(void* atr){
             db_animals[*index].startvation_time -= 1;   
             map[x][y] = *index;
 
-            send(db_animals[*index].socket, &map, sizeof(map), 0);
-            // PrintMap();
+            CreateMap(&data_send);
+            send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
             pthread_mutex_unlock(&mutex);
         }
 
         // Смотрим продолжительность жизни 
         if (db_animals[*index].life_time == 0){
+            data_send.dead = 1;
+            send(db_animals[*index].socket, &data_send, sizeof(DataSend), 0);
             pthread_exit(NULL);
         }
         usleep(50000);
     }
     
     return NULL;
+}
+
+// Создание потока
+void CreateThread(int row, int column, TypeAnimal type){
+
+    pthread_t* animal_id = (pthread_t*)(malloc(sizeof(pthread_t)));
+    
+    for(int i = 0; i < kMapSizeX*kMapSizeY; i++){
+        if (db_animals[i].type == NONE){
+
+            db_animals[i].type = type;              
+            db_animals[i].coord.x = row;
+            db_animals[i].coord.y = column;
+            db_animals[i].life_time = kLifeTime;
+            db_animals[i].startvation_time = kStarvationTime;
+
+            map[row][column] = i;
+            
+            int* index = (int*)malloc(sizeof(int));
+            *index = i;
+
+            pthread_create(animal_id, NULL, &Animal, index);
+            break;
+        }
+        else{
+            pthread_exit(0);
+        }
+    }
 }
 
 // void* CreateAnimals(void* arg){
@@ -224,7 +291,7 @@ int main()
 
     // Соедение
     id_server_socket = socket(AF_INET,SOCK_STREAM,0);	//создаем сокет 
-	description_sockaddr.sin_addr.s_addr = inet_addr ("127.0.0.1");
+	description_sockaddr.sin_addr.s_addr = INADDR_ANY;
 	description_sockaddr.sin_port        = htons(5432);
 	description_sockaddr.sin_family      = AF_INET;
 
@@ -237,9 +304,9 @@ int main()
 		int new_clent_socket = accept(id_server_socket,0,0);	//получаем идентификатро для нового сокета
 
         // Ожидаем данные от клиента 
-        AnimalSocket description_animal;
-        recv(new_clent_socket, &description_animal, siziof(description_animal), 0);
-
+        DataRecv description_animal;
+        recv(new_clent_socket, &description_animal, sizeof(description_animal), 0);
+        
         pthread_t* animal_id = (pthread_t*)(malloc(sizeof(pthread_t)));
 
         // Блокировка

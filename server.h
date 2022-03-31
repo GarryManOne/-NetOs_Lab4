@@ -44,13 +44,19 @@ typedef struct {
     int socket;             // Сокет для отправки клиенту
 } AnimalAttributes;
 
-// Передача по сокету
+// Данные от клиента
 typedef struct
 {
     Coordinate coord;       // Координаты
     TypeAnimal type;        // Тип животного
-} AnimalSocket;
+} DataRecv;
 
+// Данные для клиента
+typedef struct
+{
+    int map[4][4];          // Карат
+    int dead;               // Умер(да, нет)
+} DataSend;
 
 // ************************************************************************
 
@@ -74,6 +80,14 @@ pthread_mutex_t mutex;
 // Функция работающая в отдельном потоке
 void* Animal(void* atr);
 
+// Генерация псевдослучайных чисел на определнном промежутке
+int GetRandRangeInt(int min, int max);
+
+// Создание потока
+void CreateThread(int row, int column, TypeAnimal type);
+
+// Создание карты для отправки клиенту
+void CreateMap(DataSend* data);
 
 // ************************************************************************
 
